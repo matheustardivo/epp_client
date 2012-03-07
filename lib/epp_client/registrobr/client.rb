@@ -36,8 +36,8 @@ module EppClient
      epp-1.0.xsd">
   <command>
     <login>
-      <clID>117</clID>
-      <pw>UYVQKIWPCQ</pw>
+      <clID>#{ENV['REGISTRO_BR_CLIENT_ID']}</clID>
+      <pw>#{ENV['REGISTRO_BR_CLIENT_PW']}</pw>
       <options>
         <version>1.0</version>
         <lang>pt</lang>
