@@ -1,16 +1,37 @@
 module EppClient
   module Registrobr
     class Client
+      attr_accessor :host, :port
+      
       def initialize(host, port)
+        @host, @port = host, port
+      end
+      
+      def check(domain)
+        @domain = domain
+        
+        connect
+        login
+        
+        check_response = send_request(:domain_check)
+        
+        logout
+        close_connection
+        
+        check_response
+      end
+      
+      private
+      def connect
         ssl_context = OpenSSL::SSL::SSLContext.new(:TLSv1)
-        ssl_context.cert = OpenSSL::X509::Certificate.new(File.open('files/registrobr/client.pem'))
-        ssl_context.key = OpenSSL::PKey::RSA.new(File.open('files/registrobr/key.pem'))
-        ssl_context.ca_file = 'files/registrobr/root.pem'
+        ssl_context.cert = OpenSSL::X509::Certificate.new(File.open(CERTIFICATES[:cert]))
+        ssl_context.key = OpenSSL::PKey::RSA.new(File.open(CERTIFICATES[:key]))
+        ssl_context.ca_file = CERTIFICATES[:ca_file]
         ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
         
-        @ssl_socket = OpenSSL::SSL::SSLSocket.new(
-          TCPSocket.new(host, port), ssl_context)
+        @ssl_socket = OpenSSL::SSL::SSLSocket.new(TCPSocket.new(@host, @port), ssl_context)
         @ssl_socket.sync_close = true
+        
         @ssl_socket.connect
         
         begin
@@ -19,89 +40,28 @@ module EppClient
           raise PostConnectionCheckError, "Post connection check failed: #{ex.inspect}"
         end
         
-        # puts @ssl_socket.peer_cert_chain.inspect
         @ssl_socket.sysread(4096)
       end
       
-      def close
+      def close_connection
         @ssl_socket.close
       end
-
+      
       def login
-        xml = <<XML
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0
-     epp-1.0.xsd">
-  <command>
-    <login>
-      <clID>#{ENV['REGISTRO_BR_CLIENT_ID']}</clID>
-      <pw>#{ENV['REGISTRO_BR_CLIENT_PW']}</pw>
-      <options>
-        <version>1.0</version>
-        <lang>pt</lang>
-      </options>
-      <svcs>
-        <objURI>urn:ietf:params:xml:ns:domain-1.0</objURI>
-        <objURI>urn:ietf:params:xml:ns:contact-1.0</objURI>
-        <svcExtension>
-          <extURI>urn:ietf:params:xml:ns:brdomain-1.0</extURI>
-          <extURI>urn:ietf:params:xml:ns:brorg-1.0</extURI>
-          <extURI>urn:ietf:params:xml:ns:secDNS-1.0</extURI>
-          <extURI>urn:ietf:params:xml:ns:secDNS-1.1</extURI>
-        </svcExtension>
-      </svcs>
-    </login>
-    <clTRID>#{generate_uuid}</clTRID>
-  </command>
-</epp>
-XML
-        send_request(xml)
+        send_request(:login)
       end
       
       def logout
-        xml = <<XML
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" 
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 
-     epp-1.0.xsd">
-  <command>
-    <logout/>
-    <clTRID>#{generate_uuid}</clTRID>
-  </command>
-</epp>
-XML
-        send_request(xml)
+        send_request(:logout)
       end
       
-      def check(domain)
-        xml = <<XML
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0
-     epp-1.0.xsd">
-  <command>
-    <check>
-      <domain:check
-       xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
-       xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0
-       domain-1.0.xsd">
-        <domain:name>#{domain}</domain:name>
-      </domain:check>
-    </check>
-    <clTRID>#{generate_uuid}</clTRID>
-  </command>
-</epp>
-XML
-        send_request(xml)
-      end
-      
-      private
       def send_request(xml)
-        send_frame(xml)
+        raise TemplateNotFoundError unless TEMPLATES[xml]
+        
+        actual_template = ERB.new File.open(TEMPLATES[xml]).readlines.join
+        @uuid = generate_uuid
+        
+        send_frame(actual_template.result(binding))
         get_frame
       end
       
@@ -135,6 +95,7 @@ XML
       
       class PostConnectionCheckError < StandardError; end
       class SSLSocketError < StandardError; end
+      class TemplateNotFoundError < StandardError; end
     end
   end
 end

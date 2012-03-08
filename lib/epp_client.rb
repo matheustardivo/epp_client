@@ -1,5 +1,6 @@
 require 'socket'
 require 'openssl'
 require 'uuid'
+require 'erb'
 
-# require 'epp_client/registrobr'
+require 'epp_client/registrobr'
