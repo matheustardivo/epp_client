@@ -1,0 +1,11 @@
+registrobr:
+  certificates_path: config/registrobr
+  templates_path: config/registrobr/templates
+  certificates:
+    cert: client.pem
+    key: key.pem
+    ca_file: root.pem
+  templates:
+    login: login.xml.erb
+    logout: logout.xml.erb
+    domain_check: domain_check.xml.erb

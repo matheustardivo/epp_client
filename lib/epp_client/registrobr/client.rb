@@ -24,9 +24,9 @@ module EppClient
       private
       def connect
         ssl_context = OpenSSL::SSL::SSLContext.new(:TLSv1)
-        ssl_context.cert = OpenSSL::X509::Certificate.new(File.open(CERTIFICATES[:cert]))
-        ssl_context.key = OpenSSL::PKey::RSA.new(File.open(CERTIFICATES[:key]))
-        ssl_context.ca_file = CERTIFICATES[:ca_file]
+        ssl_context.cert = OpenSSL::X509::Certificate.new(File.open(EppClient.certificate(:registrobr, :cert)))
+        ssl_context.key = OpenSSL::PKey::RSA.new(File.open(EppClient.certificate(:registrobr, :key)))
+        ssl_context.ca_file = EppClient.certificate(:registrobr, :ca_file)
         ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
         
         @ssl_socket = OpenSSL::SSL::SSLSocket.new(TCPSocket.new(@host, @port), ssl_context)
@@ -56,9 +56,10 @@ module EppClient
       end
       
       def send_request(xml)
-        raise TemplateNotFoundError unless TEMPLATES[xml]
+        template_file = EppClient.template(:registrobr, xml)
+        raise TemplateNotFoundError unless template_file
         
-        actual_template = ERB.new File.open(TEMPLATES[xml]).readlines.join
+        actual_template = ERB.new File.open(template_file).readlines.join
         @uuid = generate_uuid
         
         send_frame(actual_template.result(binding))
